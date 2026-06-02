@@ -14,53 +14,102 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, senha }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error ?? "Erro ao fazer login.");
-        return;
+      if (!res.ok) { setError(data.error ?? "Credenciais inválidas."); return; }
+      if (!["ADMIN", "DIRECAO"].includes(data.usuario?.perfil)) {
+        setError("Acesso restrito a administradores."); return;
       }
-
-      const isAdmin = ["ADMIN", "DIRECAO"].includes(data.usuario?.perfil);
-      if (!isAdmin) {
-        setError("Acesso restrito a administradores.");
-        return;
-      }
-
       localStorage.setItem("admin_token", data.token);
+      localStorage.setItem("admin_user", JSON.stringify(data.usuario));
       router.replace("/admin/keys");
     } catch {
-      setError("Erro de conexão. Tente novamente.");
+      setError("Erro de conexão. Verifique o servidor.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-700 rounded-2xl mb-4 shadow-lg">
-            <span className="text-3xl">🎓</span>
+    <div className="min-h-screen flex">
+      {/* ── Painel esquerdo ─────────────────────────────────────── */}
+      <div className="hidden lg:flex lg:w-[55%] relative bg-slate-900 flex-col justify-between p-12 overflow-hidden">
+        {/* Gradiente decorativo */}
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950" />
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -right-20 w-[500px] h-[500px] bg-violet-700/15 rounded-full blur-3xl" />
+
+        {/* Conteúdo */}
+        <div className="relative z-10">
+          {/* Logo */}
+          <div className="flex items-center gap-3 mb-16">
+            <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-xl">🎓</span>
+            </div>
+            <span className="text-white font-semibold text-lg tracking-tight">
+              Atestado Escolar
+            </span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Atestado Escolar</h1>
-          <p className="text-gray-500 text-sm mt-1">Painel Administrativo</p>
+
+          <h1 className="text-4xl font-bold text-white leading-tight mb-4">
+            Controle total
+            <br />
+            da sua API.
+          </h1>
+          <p className="text-slate-400 text-lg leading-relaxed max-w-sm">
+            Gerencie acessos, crie chaves personalizadas e compartilhe documentação filtrada com cada desenvolvedor.
+          </p>
         </div>
 
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-6">Entrar</h2>
+        {/* Features */}
+        <div className="relative z-10 space-y-4">
+          {[
+            { icon: "🔑", title: "API Keys com escopos", desc: "Controle granular por recurso e ação" },
+            { icon: "📋", title: "Documentação por chave", desc: "Cada dev vê só o que pode usar" },
+            { icon: "🛡️", title: "Revogação instantânea", desc: "Desative acessos em um clique" },
+          ].map((f) => (
+            <div key={f.title} className="flex items-start gap-4">
+              <div className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center shrink-0 text-base">
+                {f.icon}
+              </div>
+              <div>
+                <p className="text-white text-sm font-medium">{f.title}</p>
+                <p className="text-slate-500 text-sm">{f.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Rodapé esquerdo */}
+        <p className="relative z-10 text-slate-600 text-xs">
+          © {new Date().getFullYear()} Sistema de Atestado Escolar
+        </p>
+      </div>
+
+      {/* ── Painel direito ──────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col justify-center items-center px-8 py-12 bg-white">
+        {/* Logo mobile */}
+        <div className="lg:hidden flex items-center gap-2 mb-10">
+          <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center">
+            <span className="text-lg">🎓</span>
+          </div>
+          <span className="font-semibold text-gray-900">Atestado Escolar</span>
+        </div>
+
+        <div className="w-full max-w-sm">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900">Bem-vindo de volta</h2>
+            <p className="text-gray-500 mt-1 text-sm">
+              Entre com suas credenciais de administrador.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 E-mail
@@ -70,8 +119,9 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoFocus
                 placeholder="admin@escola.edu.br"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-white transition"
               />
             </div>
 
@@ -85,29 +135,40 @@ export default function LoginPage() {
                 onChange={(e) => setSenha(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-white transition"
               />
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-                {error}
+              <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+                <span className="mt-0.5 shrink-0">⚠</span>
+                <span>{error}</span>
               </div>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg text-sm transition"
+              className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 text-white font-semibold text-sm rounded-xl transition shadow-sm shadow-indigo-200 flex items-center justify-center gap-2"
             >
-              {loading ? "Entrando..." : "Entrar"}
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Entrando…
+                </>
+              ) : (
+                "Entrar"
+              )}
             </button>
           </form>
-        </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Acesso restrito a administradores e direção
-        </p>
+          <p className="mt-8 text-center text-xs text-gray-400">
+            Acesso exclusivo para administradores e direção.
+          </p>
+        </div>
       </div>
     </div>
   );
