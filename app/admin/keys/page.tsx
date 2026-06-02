@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -113,9 +113,9 @@ export default function KeysPage() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "active" | "revoked">("all");
-  const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<ApiKey | null>(null);
+  const [revoking, setRevoking] = useState(false);
   const [toast, setToast] = useState("");
-  const menuRef = useRef<HTMLDivElement | null>(null);
 
   // form
   const [showCreate, setShowCreate] = useState(false);
@@ -140,14 +140,6 @@ export default function KeysPage() {
   }, []);
 
   useEffect(() => { fetchKeys(); }, [fetchKeys]);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenu(null);
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -174,12 +166,25 @@ export default function KeysPage() {
     } finally { setCreating(false); }
   }
 
-  async function revokeKey(id: number) {
-    setOpenMenu(null);
-    if (!confirm("Revogar esta API key permanentemente? As aplicações que a usam perderão acesso imediatamente.")) return;
-    await fetch(`/api/api-keys/${id}`, { method: "DELETE", headers: authHeader() });
-    showToast("Chave revogada.");
-    fetchKeys();
+  async function doRevoke() {
+    if (!revokeTarget) return;
+    setRevoking(true);
+    try {
+      const r = await fetch(`/api/api-keys/${revokeTarget.id}`, {
+        method: "DELETE",
+        headers: authHeader(),
+      });
+      if (!r.ok && r.status !== 204) {
+        const d = await r.json().catch(() => ({}));
+        showToast(d.error ?? "Erro ao revogar.");
+        return;
+      }
+      setRevokeTarget(null);
+      showToast("Chave revogada com sucesso.");
+      fetchKeys();
+    } finally {
+      setRevoking(false);
+    }
   }
 
   function resetForm() {
@@ -206,7 +211,6 @@ export default function KeysPage() {
 
   function copyDocsLink(id: number) {
     navigator.clipboard.writeText(`${window.location.origin}/api/docs/key/${id}`);
-    setOpenMenu(null);
     showToast("Link da documentação copiado!");
   }
 
@@ -222,36 +226,39 @@ export default function KeysPage() {
   };
   const selectedCount = allAccess ? "todos" : `${scopes.length}`;
 
-  // ── Menu de ações (dropdown) ───────────────────────────────────────────────
+  // ── Ações por linha (botões inline) ────────────────────────────────────────
 
-  function ActionMenu({ k }: { k: ApiKey }) {
+  function RowActions({ k }: { k: ApiKey }) {
     return (
-      <div className="relative">
+      <div className="flex items-center justify-end gap-1">
         <button
-          onClick={() => setOpenMenu(openMenu === k.id ? null : k.id)}
-          className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+          onClick={() => window.open(`/api/docs/key/${k.id}`, "_blank")}
+          title="Ver documentação"
+          className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-600"
         >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-            <circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" />
+          <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </button>
-        {openMenu === k.id && (
-          <div ref={menuRef} className="absolute right-0 top-9 z-20 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg shadow-slate-200/60 animate-scale-in">
-            <button onClick={() => { window.open(`/api/docs/key/${k.id}`, "_blank"); setOpenMenu(null); }}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50">
-              <span>📋</span> Ver documentação
-            </button>
-            <button onClick={() => copyDocsLink(k.id)}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50">
-              <span>🔗</span> Copiar link dos docs
-            </button>
-            <div className="my-1 border-t border-slate-100" />
-            <button onClick={() => revokeKey(k.id)}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-600 transition hover:bg-rose-50">
-              <span>🚫</span> Revogar chave
-            </button>
-          </div>
-        )}
+        <button
+          onClick={() => copyDocsLink(k.id)}
+          title="Copiar link dos docs"
+          className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+        >
+          <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m6.656-2.828a4 4 0 00-5.656 0l-3 3" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5" />
+          </svg>
+        </button>
+        <button
+          onClick={() => setRevokeTarget(k)}
+          title="Revogar chave"
+          className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+        >
+          <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+          </svg>
+        </button>
       </div>
     );
   }
@@ -365,7 +372,7 @@ export default function KeysPage() {
                     <td className="px-5 py-4"><StatusBadge active={k.isActive} /></td>
                     <td className="px-5 py-4 whitespace-nowrap text-slate-600">{fmtDate(k.createdAt)}</td>
                     <td className="px-5 py-4 whitespace-nowrap text-slate-500">{fmtRelative(k.lastUsedAt)}</td>
-                    <td className="px-5 py-4 text-right">{k.isActive && <ActionMenu k={k} />}</td>
+                    <td className="px-5 py-4 text-right">{k.isActive && <RowActions k={k} />}</td>
                   </tr>
                 ))}
               </tbody>
@@ -381,16 +388,29 @@ export default function KeysPage() {
                     <p className="font-semibold text-slate-900">{k.name}</p>
                     <code className="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">{k.prefix}…</code>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge active={k.isActive} />
-                    {k.isActive && <ActionMenu k={k} />}
-                  </div>
+                  <StatusBadge active={k.isActive} />
                 </div>
                 <div className="mt-3"><ScopeList scopes={k.scopes} max={4} /></div>
                 <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-400">
                   <span>Criada {fmtDate(k.createdAt)}</span>
                   <span>{fmtRelative(k.lastUsedAt)}</span>
                 </div>
+                {k.isActive && (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <button onClick={() => window.open(`/api/docs/key/${k.id}`, "_blank")}
+                      className="rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-600 transition active:bg-slate-50">
+                      📋 Docs
+                    </button>
+                    <button onClick={() => copyDocsLink(k.id)}
+                      className="rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-600 transition active:bg-slate-50">
+                      🔗 Link
+                    </button>
+                    <button onClick={() => setRevokeTarget(k)}
+                      className="rounded-lg border border-rose-200 py-2 text-xs font-medium text-rose-600 transition active:bg-rose-50">
+                      🚫 Revogar
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -566,6 +586,41 @@ export default function KeysPage() {
                   Concluir
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════ Modal: Confirmar revogação ════════ */}
+      {revokeTarget && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-0 backdrop-blur-sm sm:items-center sm:p-4 animate-fade-in">
+          <div className="w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-w-sm sm:rounded-3xl animate-scale-in">
+            <div className="px-6 pt-6 pb-2 text-center">
+              <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-rose-50 text-2xl">🚫</div>
+              <h2 className="text-lg font-bold tracking-tight text-slate-900">Revogar esta chave?</h2>
+              <p className="mt-1.5 text-sm text-slate-500">
+                A chave <strong className="text-slate-700">{revokeTarget.name}</strong>{" "}
+                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">{revokeTarget.prefix}…</code>{" "}
+                será desativada. As aplicações que a usam perderão acesso <strong>imediatamente</strong>. Esta ação não pode ser desfeita.
+              </p>
+            </div>
+            <div className="flex gap-3 px-6 py-5">
+              <button onClick={() => setRevokeTarget(null)} disabled={revoking}
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={doRevoke} disabled={revoking}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white shadow-sm shadow-rose-600/20 transition hover:bg-rose-700 disabled:opacity-60">
+                {revoking ? (
+                  <>
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                    </svg>
+                    Revogando…
+                  </>
+                ) : "Sim, revogar"}
+              </button>
             </div>
           </div>
         </div>
