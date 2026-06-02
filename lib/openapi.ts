@@ -302,6 +302,54 @@ export const openApiSpec = {
         responses: { "200": { description: "Status atualizado + notificação enviada" }, "404": { description: "Não encontrado" } },
       },
     },
+    "/atestados/upload": {
+      post: {
+        summary: "Enviar atestado com arquivo anexo",
+        operationId: "uploadAtestado",
+        tags: ["Atestados"],
+        "x-scopes": ["atestados:write"],
+        security: [{ ApiKey: [] }, { BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["arquivo", "usuarioId", "periodo", "motivo"],
+                properties: {
+                  arquivo: { type: "string", format: "binary", description: "PDF, JPG ou PNG (máx 4MB)" },
+                  usuarioId: { type: "integer" },
+                  periodo: { type: "string", example: "10/03/2026 a 12/03/2026" },
+                  motivo: { type: "string" },
+                  cronogramaId: { type: "integer" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Atestado criado com arquivo" },
+          "413": { description: "Arquivo maior que 4MB" },
+          "415": { description: "Tipo de arquivo não permitido" },
+          "422": { description: "Dados inválidos" },
+        },
+      },
+    },
+    "/atestados/{id}/arquivo": {
+      parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+      get: {
+        summary: "Baixar o arquivo do atestado",
+        operationId: "downloadArquivoAtestado",
+        tags: ["Atestados"],
+        "x-scopes": ["atestados:read"],
+        security: [{ ApiKey: [] }, { BearerAuth: [] }],
+        parameters: [{ name: "download", in: "query", schema: { type: "string", enum: ["1"] }, description: "1 força o download" }],
+        responses: {
+          "200": { description: "Arquivo binário (PDF/imagem)" },
+          "404": { description: "Atestado sem arquivo" },
+        },
+      },
+    },
     "/turmas": {
       get: {
         summary: "Listar turmas",

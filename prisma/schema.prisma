@@ -119,8 +119,23 @@ model Atestado {
   cronogramaId        Int?
   cronograma          Cronograma?    @relation(fields: [cronogramaId], references: [id])
   notificacoes        Notificacao[]
+  arquivo             ArquivoAtestado?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
+}
+
+// ── Arquivo do atestado (binário guardado no banco) ───────────────────────────
+// Tabela separada para não trazer o binário em toda listagem de atestados.
+
+model ArquivoAtestado {
+  id         Int      @id @default(autoincrement())
+  nome       String
+  tipo       String   // mimetype: application/pdf, image/png, image/jpeg
+  tamanho    Int      // bytes
+  conteudo   Bytes    // o arquivo em si (coluna bytea no Postgres)
+  atestadoId Int      @unique
+  atestado   Atestado @relation(fields: [atestadoId], references: [id], onDelete: Cascade)
+  criadoEm   DateTime @default(now())
 }
 
 // ── Notificação ───────────────────────────────────────────────────────────────
